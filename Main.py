@@ -1,3 +1,6 @@
+#!/usr/bin/python
+
+import sys, getopt
 import random as rnd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -41,7 +44,9 @@ class LIFNeuron(baseNeuron):
             self.Rm_Ie = self.Rm * self.Ie
 
         self.voltage_History = np.array([self.volt], float)    #Create array with first ele being the starting Voltage
-        self.synapse_History = np.array([], float)    #Create array with first ele being the starting Voltage
+
+        self.last_Spike_t = 0
+
         self.synapseInList = np.array([])
         self.synapseOutList = np.array([])
 
@@ -49,12 +54,11 @@ class LIFNeuron(baseNeuron):
     # Performill one timestep update to the LIFNeuron and saves the voltage in the history
     def update(self):
         synapse_input = self.calc_syn_input()
-        self.synapse_History = np.append(self.synapse_History, synapse_input)
 
         if self.volt >= self.volt_Thesh:   # If we spike, reset
             self.volt = self.volt_reset
+            self.last_Spike_t = currentTime
             self.spike_Synapses()
-
 
         # dV = ((El - V) + RmIe)*dt/tau
         diff = ((self.leaky - self.volt) + (self.Rm_Ie + synapse_input)) *  timestep/self.tau
@@ -79,6 +83,10 @@ class LIFNeuron(baseNeuron):
     def spike_Synapses(self):
         for synapse in self.synapseOutList:
             synapse.spike()
+
+        if self.synapseInList[0].__class__.__name__ == "STDPSynapse":
+            for synapse in self.synapseInList:
+                synapse.STDP_Update()
 
 class BaseSynapse(ABC):
     def __init__(self):
@@ -136,7 +144,9 @@ class poissonSynapse(BaseSynapse):
     def update(self):
         # Now we check for a spike from the poisson 'Neuron'
         chance = rnd.random()
-        if (chance < timestep*self.Firerate): self.spike()
+        if (chance < timestep*self.Firerate):
+            self.spike()
+            self.last_spike_recieved_t = currentTime
 
         self.s = self.s - (self.s * timestep) / self.tauS
         self.RmIs = self.RmGs * (self.Es - self.post_LIFNeuron.volt) * self.s
@@ -144,6 +154,43 @@ class poissonSynapse(BaseSynapse):
 
     def spike(self):
         self.s += self.delta_s
+
+class STDPSynapse(poissonSynapse):
+    def __init__(self, aPlus, aMinus, tauPlus, tauMinus, sV):
+
+        self.aPlus = aPlus * nano
+        self.aMinus = aMinus * nano
+        self.tauPlus = tauPlus * mill
+        self.tauMinus = tauMinus * mill
+
+        self.last_spike_recieved_t = 0
+
+        poissonSynapse.__init__(self, sV[0], sV[1], sV[2], sV[3], sV[4], sV[5])
+
+        self.Gi_history = np.array([self.Gi])
+
+    #Slightly updated spike to now recordthe spike time and change according to STDP
+    def spike(self):
+        self.s += self.delta_s
+        self.last_spike_recieved_t = currentTime
+        self.STDP_Update()
+
+    # Calculate the spike time differance and update the Gi accordingly
+    def STDP_Update(self):
+        delta_t =  self.post_LIFNeuron.last_Spike_t - self.last_spike_recieved_t
+        if delta_t > 0:
+            self.Gi = self.Gi + (self.aPlus * math.exp(-abs(delta_t)/self.tauPlus))
+        elif delta_t <= 0:
+            self.Gi = self.Gi + (-self.aMinus * math.exp(-abs(delta_t)/self.tauMinus))
+
+        # Limit Gi in case it gets too large or negative from update
+        if self.Gi > 4 * nano:
+            self.Gi = 4 * nano
+        elif self.Gi < 0:
+            self.Gi = 0
+
+        self.Gi_history = np.append(self.Gi_history, self.Gi)
+
 
 
 # -----------------------------------------------------------------------------
@@ -215,7 +262,6 @@ def QuestionTwo(Es):
 
 
     fig, ax = plt.subplots(1,1)
-    print(lifNeuron1.diff_History[:20])
 
     ax.plot(lifNeuron1.voltage_History, color = 'blue')
     ax.plot(lifNeuron2.voltage_History, color = 'red')
@@ -246,8 +292,8 @@ def PartB_QuestionOne():
         lifNeuron.update()
         for syn in PSynapses:
             syn.update()
+        currentTime = t
 
-    print(lifNeuron.synapse_History[:50])
     fig, ax = plt.subplots(1,1)
 
     ax.plot(lifNeuron.voltage_History, color = 'blue')
@@ -262,15 +308,79 @@ def PartB_QuestionOne():
     plt.show()
 
 
+# -----------------------------------------------------------------------------
+#                           Question 2
+
+def PartB_QuestionTwo(stdp):
+    global currentTime
+    #                    (tau,volt, volt_reset, leaky, volt_Thesh, RmIe)
+    lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
+
+    synapseVariables = [lifNeuron     , 4 ,0.5     , 2   , 0 , 15]
+    #                              (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
+    if (not stdp):
+        PSynapses = [poissonSynapse(lifNeuron     , 4 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
+    else:
+        #                       (aPlus, aMinus, tauPlus, tauMinus, *sV)
+        PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
+
+    for t in timestamps:
+        lifNeuron.update()
+        for syn in PSynapses:
+            syn.update()
+        currentTime = t
+
+
+    fig, ax = plt.subplots(1,1)
+
+    final_Gis = np.array([])
+    for syn in PSynapses:
+        final_Gis = np.append(final_Gis, syn.Gi_history[-1])
+
+    ax.hist(final_Gis)
+
+
+    #ax.plot(lifNeuron.voltage_History, color = 'blue')
+    #ax.hlines(lifNeuron.volt_Thesh, 0,4000)
+
+    #plt.xticks(np.arange(0,len(lifNeuron.voltage_History), step=len(lifNeuron.voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
+    plt.xlabel("Gi Values (nA)")
+    plt.ylabel("# Of Synapses")
+
+    plt.title("Part 2 Q2")
+
+    plt.show()
+
+
 mill = 0.001
-mega = 1000
+mega = 1000000
 nano = 0.000000001
 timestep = 0.25 * mill
 
-duration = 1
-timestamps = np.arange(0, duration, timestep)
+timestamps = []
+currentTime = 0
 
-#QuestionOne()
-#QuestionTwo(0)
-#QuestionTwo(-80)
-PartB_QuestionOne()
+def main(argv):
+    STDP = False
+    duration = 1
+    try:
+      opts, args = getopt.getopt(argv,"sd:",["stdp"])
+    except getopt.GetoptError:
+      print ('main.py [-s, -d]')
+      sys.exit(2)
+    for opt, arg in opts:
+      if opt in ("-s", "--stdp"):
+          STDP = True
+      elif opt == '-d':
+          duration = int(arg)
+
+    global timestamps
+    timestamps = np.arange(0, duration, timestep)
+    #QuestionOne()
+    #QuestionTwo(0)
+    #QuestionTwo(-80)
+    #PartB_QuestionOne()
+    PartB_QuestionTwo(STDP)
+
+if __name__ == "__main__":
+   main(sys.argv[1:])
