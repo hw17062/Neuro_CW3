@@ -7,6 +7,8 @@ from matplotlib import pyplot as plt
 from matplotlib import ticker
 import math
 from abc import ABC, abstractmethod
+from statistics import mean
+import time
 
 class baseNeuron(ABC):
     def __init__(self):
@@ -47,6 +49,8 @@ class LIFNeuron(baseNeuron):
 
         self.last_Spike_t = 0
 
+        self.spike_count = 0
+
         self.synapseInList = np.array([])
         self.synapseOutList = np.array([])
 
@@ -58,6 +62,7 @@ class LIFNeuron(baseNeuron):
         if self.volt >= self.volt_Thesh:   # If we spike, reset
             self.volt = self.volt_reset
             self.last_Spike_t = currentTime
+            self.spike_count += 1
             self.spike_Synapses()
 
         # dV = ((El - V) + RmIe)*dt/tau
@@ -87,6 +92,9 @@ class LIFNeuron(baseNeuron):
         if self.synapseInList[0].__class__.__name__ == "STDPSynapse":
             for synapse in self.synapseInList:
                 synapse.STDP_Update()
+
+    def reset_Spike_Count(self):
+        self.spike_count = 0
 
 class BaseSynapse(ABC):
     def __init__(self):
@@ -190,6 +198,8 @@ class STDPSynapse(poissonSynapse):
             self.Gi = 0
 
         self.Gi_history = np.append(self.Gi_history, self.Gi)
+
+        self.RmGs = self.Rm * self.Gi
 
 
 
@@ -316,38 +326,56 @@ def PartB_QuestionTwo(stdp):
     #                    (tau,volt, volt_reset, leaky, volt_Thesh, RmIe)
     lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
 
-    synapseVariables = [lifNeuron     , 4 ,0.5     , 2   , 0 , 15]
+    synapseVariables = [lifNeuron     , 2.669    ,0.5     , 2   , 0 , 15]
     #                              (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
     if (not stdp):
-        PSynapses = [poissonSynapse(lifNeuron     , 4 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
+        PSynapses = [poissonSynapse(lifNeuron     , 2.669 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
     else:
         #                       (aPlus, aMinus, tauPlus, tauMinus, *sV)
         PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
 
+    spike_Counter_Bins = np.array([])
     for t in timestamps:
         lifNeuron.update()
         for syn in PSynapses:
             syn.update()
         currentTime = t
 
+        if (t % 10 < timestep/2 and not t == 0):
+            print("updating bins")
+            spike_Counter_Bins = np.append(spike_Counter_Bins, lifNeuron.spike_count/10)
+            print(spike_Counter_Bins[-1])
+            lifNeuron.reset_Spike_Count()
 
-    fig, ax = plt.subplots(1,1)
+    print("updating Final bins")
+    spike_Counter_Bins = np.append(spike_Counter_Bins, lifNeuron.spike_count/(currentTime % 10))
+    print(spike_Counter_Bins[-1])
+    lifNeuron.reset_Spike_Count()
+
+    plt.subplot(2,1,1)
+
+    plt.title("Part 2 Q2")
 
     final_Gis = np.array([])
     for syn in PSynapses:
         final_Gis = np.append(final_Gis, syn.Gi_history[-1])
 
-    ax.hist(final_Gis)
+    plt.hist(final_Gis)
 
-
-    #ax.plot(lifNeuron.voltage_History, color = 'blue')
-    #ax.hlines(lifNeuron.volt_Thesh, 0,4000)
-
-    #plt.xticks(np.arange(0,len(lifNeuron.voltage_History), step=len(lifNeuron.voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
     plt.xlabel("Gi Values (nA)")
     plt.ylabel("# Of Synapses")
 
-    plt.title("Part 2 Q2")
+    plt.subplot(2,1,2)
+
+    plt.plot(spike_Counter_Bins, color = 'blue')
+    #ax.hlines(lifNeuron.volt_Thesh, 0,4000)
+
+    #plt.xticks(np.arange(0,duration, step=duration/5, [string(i * duration/5) for i in range(6)]))
+    plt.xlabel("Time (s)")
+    plt.ylabel("Firerate (Hz)")
+
+    print("average Gi: ", mean(final_Gis))
+    print("average <f> of last 30s: ", mean(lifNeuron.spike_count[-3:]))
 
     plt.show()
 
@@ -361,6 +389,7 @@ timestamps = []
 currentTime = 0
 
 def main(argv):
+    start_time = time.time()
     STDP = False
     duration = 1
     try:
@@ -381,6 +410,8 @@ def main(argv):
     #QuestionTwo(-80)
     #PartB_QuestionOne()
     PartB_QuestionTwo(STDP)
+
+    print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == "__main__":
    main(sys.argv[1:])
