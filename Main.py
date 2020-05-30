@@ -45,14 +45,14 @@ class LIFNeuron(baseNeuron):
             self.Ie = kwargs["Ie"] * nano
             self.Rm_Ie = self.Rm * self.Ie
 
-        self.voltage_History = np.array([self.volt], float)    #Create array with first ele being the starting Voltage
+        self.voltage_History= [self.volt]   #Create array with first ele being the starting Voltage
 
         self.last_Spike_t = 0
 
         self.spike_count = 0
 
-        self.synapseInList = np.array([])
-        self.synapseOutList = np.array([])
+        self.synapseInList = []
+        self.synapseOutList = []
 
 
     # Performill one timestep update to the LIFNeuron and saves the voltage in the history
@@ -71,13 +71,13 @@ class LIFNeuron(baseNeuron):
 
         if (self.volt < self.volt_rest): self.volt = self.volt_rest
 
-        self.voltage_History = np.append(self.voltage_History, [self.volt])
+        self.voltage_History.append(self.volt)
 
     def add_SynapseIn(self, synapse):
-        self.synapseInList = np.append(self.synapseInList, [synapse])
+        self.synapseInList.append(synapse)
 
     def add_SynapseOut(self, synapse):
-        self.synapseOutList = np.append(self.synapseOutList, [synapse])
+        self.synapseOutListappend(synapse)
 
     def calc_syn_input(self):
         input = 0
@@ -175,7 +175,7 @@ class STDPSynapse(poissonSynapse):
 
         poissonSynapse.__init__(self, sV[0], sV[1], sV[2], sV[3], sV[4], sV[5])
 
-        self.Gi_history = np.array([self.Gi])
+        self.Gi_history = [self.Gi]
 
     #Slightly updated spike to now recordthe spike time and change according to STDP
     def spike(self):
@@ -188,7 +188,7 @@ class STDPSynapse(poissonSynapse):
         delta_t =  self.post_LIFNeuron.last_Spike_t - self.last_spike_recieved_t
         if delta_t > 0:
             self.Gi = self.Gi + (self.aPlus * math.exp(-abs(delta_t)/self.tauPlus))
-        elif delta_t <= 0:
+        else:
             self.Gi = self.Gi + (-self.aMinus * math.exp(-abs(delta_t)/self.tauMinus))
 
         # Limit Gi in case it gets too large or negative from update
@@ -197,7 +197,7 @@ class STDPSynapse(poissonSynapse):
         elif self.Gi < 0:
             self.Gi = 0
 
-        self.Gi_history = np.append(self.Gi_history, self.Gi)
+        self.Gi_history.append(self.Gi)
 
         self.RmGs = self.Rm * self.Gi
 
@@ -326,15 +326,15 @@ def PartB_QuestionTwo(stdp):
     #                    (tau,volt, volt_reset, leaky, volt_Thesh, RmIe)
     lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
 
-    synapseVariables = [lifNeuron     , 2.669    ,0.5     , 2   , 0 , 15]
+    synapseVariables = [lifNeuron     , 2.362    ,0.5     , 2   , 0 , 15]
     #                              (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
     if (not stdp):
-        PSynapses = [poissonSynapse(lifNeuron     , 2.669 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
+        PSynapses = [poissonSynapse(lifNeuron     , 2.362 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
     else:
         #                       (aPlus, aMinus, tauPlus, tauMinus, *sV)
         PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
 
-    spike_Counter_Bins = np.array([])
+    spike_Counter_Bins = []
     for t in timestamps:
         lifNeuron.update()
         for syn in PSynapses:
@@ -342,42 +342,96 @@ def PartB_QuestionTwo(stdp):
         currentTime = t
 
         if (t % 10 < timestep/2 and not t == 0):
-            print("updating bins")
-            spike_Counter_Bins = np.append(spike_Counter_Bins, lifNeuron.spike_count/10)
-            print(spike_Counter_Bins[-1])
+            spike_Counter_Bins.append(lifNeuron.spike_count/10)
             lifNeuron.reset_Spike_Count()
 
-    print("updating Final bins")
-    spike_Counter_Bins = np.append(spike_Counter_Bins, lifNeuron.spike_count/(currentTime % 10))
-    print(spike_Counter_Bins[-1])
+    spike_Counter_Bins.append(lifNeuron.spike_count/(currentTime % 10))
     lifNeuron.reset_Spike_Count()
 
     plt.subplot(2,1,1)
 
     plt.title("Part 2 Q2")
+    final_Gis = []
+    if (PSynapses[1].__class__.__name__ == "PSynapses"):
 
-    final_Gis = np.array([])
-    for syn in PSynapses:
-        final_Gis = np.append(final_Gis, syn.Gi_history[-1])
+        for syn in PSynapses:
+            final_Gis.append(syn.Gi_history[-1])
 
-    plt.hist(final_Gis)
+        plt.hist(final_Gis)
 
-    plt.xlabel("Gi Values (nA)")
-    plt.ylabel("# Of Synapses")
+        plt.xlabel("Gi Values (nA)")
+        plt.ylabel("# Of Synapses")
 
     plt.subplot(2,1,2)
 
     plt.plot(spike_Counter_Bins, color = 'blue')
     #ax.hlines(lifNeuron.volt_Thesh, 0,4000)
 
-    #plt.xticks(np.arange(0,duration, step=duration/5, [string(i * duration/5) for i in range(6)]))
+    plt.xticks(np.arange(0,len(spike_Counter_Bins) + 1, step=len(spike_Counter_Bins)/6),  [str(i * duration/6) for i in range(7)])
     plt.xlabel("Time (s)")
     plt.ylabel("Firerate (Hz)")
 
-    print("average Gi: ", mean(final_Gis))
-    print("average <f> of last 30s: ", mean(lifNeuron.spike_count[-3:]))
+    #print("average Gi: ", mean(final_Gis))
+    print("average <f> of last 30s: ", str(mean(spike_Counter_Bins[-3:])))
 
-    plt.show()
+    savefig('figure_2p_2c.png', bbox_inches='tight')
+
+def PartB_QuestionThree_Aux(lifNeuron, PSynapses):
+    for t in timestamps:
+        lifNeuron.update()
+        for syn in PSynapses:
+            syn.update()
+        currentTime = t
+
+def PartB_QuestionThree():
+
+    #gets the spike counter from each firerate
+    spike_Counter_Bins = []
+    spike_Counter_Bins_stdp = []
+    stdp = True
+
+    # Loop throught 10-20 hz firerate and one for stdp and non-stdp synapses
+    for i in range(2):
+        stdp = not stdp
+        for j in range(10):
+            print("On simulation: ", i*10 + j)
+            #                    (tau,volt, volt_reset, leaky, volt_Thesh, RmIe)
+            lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
+
+            synapseVariables = [lifNeuron     , 4    ,0.5     , 2   , 0 , 10 + j]   #ease of use for vars being sent ot the synapse
+            #                              (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
+            if (not stdp):
+                PSynapses = [poissonSynapse(lifNeuron     , 4 ,0.5     , 2   , 0 , 10 + j ) for i  in range(40)]
+                PartB_QuestionThree_Aux(lifNeuron, PSynapses)   #run the sim
+                spike_Counter_Bins.append(lifNeuron.spike_count/300)  # Add the total spike count to a list
+            else:
+                #                       (aPlus, aMinus, tauPlus, tauMinus, *sV)
+                PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
+                PartB_QuestionThree_Aux(lifNeuron, PSynapses)   # Run the sim
+                spike_Counter_Bins_stdp.append(lifNeuron.spike_count/300)    # Add the total spike count to a list
+
+            #Now we run one simulation
+
+
+
+
+    fig, ax = plt.subplots(1,1)
+
+    ax.plot(spike_Counter_Bins, color = 'blue')
+    ax.plot(spike_Counter_Bins_stdp, color = 'red')
+
+    plt.xticks(np.arange(0,len(spike_Counter_Bins_stdp), step=len(spike_Counter_Bins_stdp)/5),  [str(round(i * len(spike_Counter_Bins_stdp)/6, 3)) for i in range(7)])
+    plt.xlabel("input Firerate (hz)")
+    plt.ylabel("output firerates")
+
+    plt.title("Part 2 Q3")
+    ax.legend(['Non-STDP', 'w/ STDP'])
+
+    #plt.show()
+
+    plt.savefig('figure_2p_3a.png', bbox_inches='tight', dpi=1600)
+
+    return
 
 
 mill = 0.001
@@ -387,13 +441,18 @@ timestep = 0.25 * mill
 
 timestamps = []
 currentTime = 0
+duration = 1
+firerate = 15
 
 def main(argv):
+    global duration
+    global firerate
+
     start_time = time.time()
     STDP = False
-    duration = 1
+
     try:
-      opts, args = getopt.getopt(argv,"sd:",["stdp"])
+      opts, args = getopt.getopt(argv,"sd:f:",["stdp"])
     except getopt.GetoptError:
       print ('main.py [-s, -d]')
       sys.exit(2)
@@ -402,6 +461,8 @@ def main(argv):
           STDP = True
       elif opt == '-d':
           duration = int(arg)
+      elif opt == '-f':
+          firerate = int(arg)
 
     global timestamps
     timestamps = np.arange(0, duration, timestep)
@@ -409,7 +470,10 @@ def main(argv):
     #QuestionTwo(0)
     #QuestionTwo(-80)
     #PartB_QuestionOne()
-    PartB_QuestionTwo(STDP)
+    #PartB_QuestionTwo(STDP)
+
+
+    PartB_QuestionThree()
 
     print("--- %s seconds ---" % (time.time() - start_time))
 
