@@ -299,10 +299,11 @@ def PartB_QuestionOne():
     PSynapses = [poissonSynapse(lifNeuron     , 4 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
 
     for t in timestamps:
+        currentTime = t
         lifNeuron.update()
         for syn in PSynapses:
             syn.update()
-        currentTime = t
+
 
     fig, ax = plt.subplots(1,1)
 
@@ -429,10 +430,44 @@ def PartB_QuestionThree():
 
     #plt.show()
 
-    plt.savefig('figure_2p_3a.png', bbox_inches='tight', dpi=1600)
+    plt.savefig('figure_2p_3a.png', bbox_inches='tight', dpi=1000)
 
-    return
+def PartB_QuestionThree_second():
 
+
+    Gi_vals_mean = []
+    for i in range(2):
+        print("On simulation: ", i)
+        lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
+        synapseVariables = [lifNeuron     , 4    ,0.5     , 2   , 0 , 10 * (i + 1)]   #ease of use for vars being sent ot the synapse
+        PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
+        Gi_Vals_Holder = [[] for i in range(40)]
+        for t in timestamps:
+            currentTime = t
+            lifNeuron.update()
+            for s in range(len(PSynapses)):
+                PSynapses[s].update()
+                #if we are in the last 30s, start a list of every syn's gi
+                if (t > timestamps[-1] - 30):
+                    Gi_Vals_Holder[s].append(PSynapses[s].Gi_history[-1])
+
+        Gi_vals_mean.append([mean(Gi_Vals_Holder[j]) for j in range(40)])
+
+    fig, ax = plt.subplots(1,1)
+    print(Gi_vals_mean[0], "\n\n", Gi_vals_mean[1])
+    ax.hist(Gi_vals_mean[0], color = 'blue')
+    ax.hist(Gi_vals_mean[1], color = 'red')
+
+    #plt.xticks(np.arange(0,len(Gi_vals_mean[1]), step=len(Gi_vals_mean[1])/4),  [str(round(i * len(Gi_vals_mean[1])/5, 3)) for i in range(6)])
+    plt.xlabel("input Firerate (hz)")
+    plt.ylabel("Stead-state synaptic strengths")
+
+    plt.title("Part 2 Q3, STDP Hz test")
+    ax.legend(['10Hz', '20Hz'])
+
+    plt.show()
+
+    plt.savefig('figure_2p_3b.png', bbox_inches='tight', dpi=1000)
 
 mill = 0.001
 mega = 1000000
@@ -473,7 +508,8 @@ def main(argv):
     #PartB_QuestionTwo(STDP)
 
 
-    PartB_QuestionThree()
+    #PartB_QuestionThree()
+    PartB_QuestionThree_second()
 
     print("--- %s seconds ---" % (time.time() - start_time))
 
