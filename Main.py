@@ -4,11 +4,14 @@ import sys, getopt
 import random as rnd
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib as mpl
 from matplotlib import ticker
 import math
 from abc import ABC, abstractmethod
 from statistics import mean
 import time
+
+mpl.rcParams['agg.path.chunksize'] = 10000
 
 class baseNeuron(ABC):
     def __init__(self):
@@ -77,7 +80,7 @@ class LIFNeuron(baseNeuron):
         self.synapseInList.append(synapse)
 
     def add_SynapseOut(self, synapse):
-        self.synapseOutListappend(synapse)
+        self.synapseOutList.append(synapse)
 
     def calc_syn_input(self):
         input = 0
@@ -89,9 +92,10 @@ class LIFNeuron(baseNeuron):
         for synapse in self.synapseOutList:
             synapse.spike()
 
-        if self.synapseInList[0].__class__.__name__ == "STDPSynapse":
-            for synapse in self.synapseInList:
-                synapse.STDP_Update()
+        if (self.synapseInList):
+            if self.synapseInList[0].__class__.__name__ == "STDPSynapse":
+                for synapse in self.synapseInList:
+                    synapse.STDP_Update()
 
     def reset_Spike_Count(self):
         self.spike_count = 0
@@ -233,17 +237,19 @@ def QuestionOne():
     for i in range(len(timestamps) - 1):    # Loop through how many time steps there are
         lifNeuron.update()
 
+    print(len(lifNeuron.voltage_History))
     fig, ax = plt.subplots(1,1)
 
     ax.plot(lifNeuron.voltage_History)
 
-    #plt.xticks(np.arange(0,len(LIFNeuron.voltage_History), step=len(LIFNeuron.voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
+    plt.xticks(np.arange(0,len(lifNeuron.voltage_History), step=len(lifNeuron.voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
     plt.xlabel("Time (s)")
     plt.ylabel("Voltage Value")
 
     plt.title("LIF Model")
 
-    plt.show()
+    print("Saving figure_p1_q1_new.png after - %s seconds -" % (time.time() - start_time")
+    plt.savefig('figure_p1_q1_new.png', bbox_inches='tight', dpi=1000)
 
 
 # -----------------------------------------------------------------------------
@@ -283,7 +289,8 @@ def QuestionTwo(Es):
 
     plt.title("LIF Model")
 
-    plt.show()
+    print("Saving figure_p1_q2_new.png after - %s seconds -" % (time.time() - start_time)
+    plt.savefig('figure_p1_q2_new.png', bbox_inches='tight', dpi=1000)
 
 # =============================================================================
 #                           Part 2
@@ -316,7 +323,8 @@ def PartB_QuestionOne():
 
     plt.title("Part 2 Q1")
 
-    plt.show()
+    print("Saving figure_p2_q1_new.png after - %s seconds -" % (time.time() - start_time)
+    plt.savefig('figure_p2_q1_new.png', bbox_inches='tight', dpi=1000)
 
 
 # -----------------------------------------------------------------------------
@@ -375,7 +383,8 @@ def PartB_QuestionTwo(stdp):
     #print("average Gi: ", mean(final_Gis))
     print("average <f> of last 30s: ", str(mean(spike_Counter_Bins[-3:])))
 
-    savefig('figure_2p_2c.png', bbox_inches='tight')
+    print("Saving figure_2p_2a_new.png after - %s seconds -" % (time.time() - start_time)
+    plt.savefig('figure_2p_2a_new.png', bbox_inches='tight')
 
 def PartB_QuestionThree_Aux(lifNeuron, PSynapses):
     for t in timestamps:
@@ -411,10 +420,6 @@ def PartB_QuestionThree():
                 PartB_QuestionThree_Aux(lifNeuron, PSynapses)   # Run the sim
                 spike_Counter_Bins_stdp.append(lifNeuron.spike_count/300)    # Add the total spike count to a list
 
-            #Now we run one simulation
-
-
-
 
     fig, ax = plt.subplots(1,1)
 
@@ -430,7 +435,8 @@ def PartB_QuestionThree():
 
     #plt.show()
 
-    plt.savefig('figure_2p_3a.png', bbox_inches='tight', dpi=1000)
+    print("Saving figure_2p_3a_new.png after - %s seconds -" % (time.time() - start_time)
+    plt.savefig('figure_2p_3a_new.png', bbox_inches='tight', dpi=1000)
 
 def PartB_QuestionThree_second():
 
@@ -454,7 +460,6 @@ def PartB_QuestionThree_second():
         Gi_vals_mean.append([mean(Gi_Vals_Holder[j]) for j in range(40)])
 
     fig, ax = plt.subplots(1,1)
-    print(Gi_vals_mean[0], "\n\n", Gi_vals_mean[1])
     ax.hist(Gi_vals_mean[0], color = 'blue')
     ax.hist(Gi_vals_mean[1], color = 'red')
 
@@ -465,9 +470,9 @@ def PartB_QuestionThree_second():
     plt.title("Part 2 Q3, STDP Hz test")
     ax.legend(['10Hz', '20Hz'])
 
-    plt.show()
 
-    plt.savefig('figure_2p_3b.png', bbox_inches='tight', dpi=1000)
+    print("Saving figure_2p_3b_new.png after - %s seconds -" % (time.time() - start_time)
+    plt.savefig('figure_2p_3b_new.png', bbox_inches='tight', dpi=1000)
 
 mill = 0.001
 mega = 1000000
@@ -477,17 +482,20 @@ timestep = 0.25 * mill
 timestamps = []
 currentTime = 0
 duration = 1
-firerate = 15
+start_time = 0
 
 def main(argv):
     global duration
     global firerate
+    global timestamps
 
+    input_duration = duration
+    global start_time
     start_time = time.time()
     STDP = False
 
     try:
-      opts, args = getopt.getopt(argv,"sd:f:",["stdp"])
+      opts, args = getopt.getopt(argv,"sd:",["stdp"])
     except getopt.GetoptError:
       print ('main.py [-s, -d]')
       sys.exit(2)
@@ -495,20 +503,25 @@ def main(argv):
       if opt in ("-s", "--stdp"):
           STDP = True
       elif opt == '-d':
-          duration = int(arg)
-      elif opt == '-f':
-          firerate = int(arg)
+          input_duration = int(arg)
 
-    global timestamps
+    # Set durations of the Qs appropriately
+    duration = 1
     timestamps = np.arange(0, duration, timestep)
-    #QuestionOne()
-    #QuestionTwo(0)
-    #QuestionTwo(-80)
-    #PartB_QuestionOne()
-    #PartB_QuestionTwo(STDP)
+    QuestionOne()
+
+    duration = 1
+    timestamps = np.arange(0, duration, timestep)
+    QuestionTwo(0)
+    QuestionTwo(-80)
+
+    duration = input_duration
+    timestamps = np.arange(0, duration, timestep)
+    PartB_QuestionOne()
+    PartB_QuestionTwo(STDP)
 
 
-    #PartB_QuestionThree()
+    PartB_QuestionThree()
     PartB_QuestionThree_second()
 
     print("--- %s seconds ---" % (time.time() - start_time))
