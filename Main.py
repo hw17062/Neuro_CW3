@@ -205,7 +205,16 @@ class STDPSynapse(poissonSynapse):
 
         self.RmGs = self.Rm * self.Gi
 
+def runSimulation(Neurons, Synapses):
+    global currentTime
+    for t in timestamps:
+        currentTime = t
+        for n in Neurons:
+            n.update()
+        for syn in Synapses:
+            syn.update()
 
+    return Neurons, Synapses
 
 # -----------------------------------------------------------------------------
 #                           Question 1
@@ -234,8 +243,11 @@ class STDPSynapse(poissonSynapse):
 def QuestionOne():
     #                    (tau,volt, volt_reset, leaky, volt_Thesh, Rm_Ie):
     lifNeuron = LIFNeuron(10 ,-70 ,        -70,   -70,        -40,   Rm=10, Ie=3.1)
-    for i in range(len(timestamps) - 1):    # Loop through how many time steps there are
-        lifNeuron.update()
+
+    runSimulation([lifNeuron], [])
+
+    #for i in range(len(timestamps) - 1):    # Loop through how many time steps there are
+    #    lifNeuron.update()
 
     print(len(lifNeuron.voltage_History))
     fig, ax = plt.subplots(1,1)
@@ -248,7 +260,8 @@ def QuestionOne():
 
     plt.title("LIF Model")
 
-    print("Saving figure_p1_q1_new.png after - %s seconds -" % (time.time() - start_time")
+    print("Saving figure_p1_q1_new.png after - %s seconds -" % (time.time() - start_time))
+
     plt.savefig('figure_p1_q1_new.png', bbox_inches='tight', dpi=1000)
 
 
@@ -269,27 +282,30 @@ def QuestionTwo(Es):
     synapse1_2 = Synapse(lifNeuron1   , lifNeuron2    , 0.15 , 0.5   , 10 , Es)
     synapse2_1 = Synapse(lifNeuron2   , lifNeuron1    , 0.15 , 0.5   , 10 , Es)
 
+    Ns = [lifNeuron1, lifNeuron2]
+    Ss = [synapse1_2, synapse2_1]
+    Ns, Ss = runSimulation(Ns, Ss)
 
-    for i in range(len(timestamps) - 1):    # Loop through how many time steps there are
-        lifNeuron1.update()
-        lifNeuron2.update()
-        synapse1_2.update()
-        synapse2_1.update()
+    # for i in range(len(timestamps) - 1):    # Loop through how many time steps there are
+    #     lifNeuron1.update()
+    #     lifNeuron2.update()
+    #     synapse1_2.update()
+    #     synapse2_1.update()
 
 
     fig, ax = plt.subplots(1,1)
 
-    ax.plot(lifNeuron1.voltage_History, color = 'blue')
-    ax.plot(lifNeuron2.voltage_History, color = 'red')
+    ax.plot(Ns[0].voltage_History, color = 'blue')
+    ax.plot(Ns[1].voltage_History, color = 'red')
     ax.legend(['lifNeuron One', 'lifNeuron 2'])
 
-    plt.xticks(np.arange(0,len(lifNeuron1.voltage_History), step=len(lifNeuron1.voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
+    plt.xticks(np.arange(0,len(Ns[0].voltage_History), step=len(Ns[0].voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
     plt.xlabel("Time (s)")
     plt.ylabel("Voltage Value")
 
     plt.title("LIF Model")
 
-    print("Saving figure_p1_q2_new.png after - %s seconds -" % (time.time() - start_time)
+    print("Saving figure_p1_q2_new.png after - %s seconds -" % (time.time() - start_time))
     plt.savefig('figure_p1_q2_new.png', bbox_inches='tight', dpi=1000)
 
 # =============================================================================
@@ -305,12 +321,13 @@ def PartB_QuestionOne():
     #                          (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
     PSynapses = [poissonSynapse(lifNeuron     , 4 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
 
-    for t in timestamps:
-        currentTime = t
-        lifNeuron.update()
-        for syn in PSynapses:
-            syn.update()
+    lifNeuron, PSynapses = runSimulation([lifNeuron], PSynapses)
 
+    # for t in timestamps:
+    #     currentTime = t
+    #     lifNeuron.update()
+    #     for syn in PSynapses:
+    #         syn.update()
 
     fig, ax = plt.subplots(1,1)
 
@@ -323,7 +340,7 @@ def PartB_QuestionOne():
 
     plt.title("Part 2 Q1")
 
-    print("Saving figure_p2_q1_new.png after - %s seconds -" % (time.time() - start_time)
+    print("Saving figure_p2_q1_new.png after - %s seconds -" % (time.time() - start_time))
     plt.savefig('figure_p2_q1_new.png', bbox_inches='tight', dpi=1000)
 
 
@@ -344,11 +361,13 @@ def PartB_QuestionTwo(stdp):
         PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
 
     spike_Counter_Bins = []
+
     for t in timestamps:
+        currentTime = t
         lifNeuron.update()
         for syn in PSynapses:
             syn.update()
-        currentTime = t
+
 
         if (t % 10 < timestep/2 and not t == 0):
             spike_Counter_Bins.append(lifNeuron.spike_count/10)
@@ -383,15 +402,9 @@ def PartB_QuestionTwo(stdp):
     #print("average Gi: ", mean(final_Gis))
     print("average <f> of last 30s: ", str(mean(spike_Counter_Bins[-3:])))
 
-    print("Saving figure_2p_2a_new.png after - %s seconds -" % (time.time() - start_time)
+    print("Saving figure_2p_2a_new.png after - %s seconds -" % (time.time() - start_time))
     plt.savefig('figure_2p_2a_new.png', bbox_inches='tight')
 
-def PartB_QuestionThree_Aux(lifNeuron, PSynapses):
-    for t in timestamps:
-        lifNeuron.update()
-        for syn in PSynapses:
-            syn.update()
-        currentTime = t
 
 def PartB_QuestionThree():
 
@@ -412,12 +425,12 @@ def PartB_QuestionThree():
             #                              (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
             if (not stdp):
                 PSynapses = [poissonSynapse(lifNeuron     , 4 ,0.5     , 2   , 0 , 10 + j ) for i  in range(40)]
-                PartB_QuestionThree_Aux(lifNeuron, PSynapses)   #run the sim
+                runSimulation([lifNeuron], PSynapses)   #run the sim
                 spike_Counter_Bins.append(lifNeuron.spike_count/300)  # Add the total spike count to a list
             else:
                 #                       (aPlus, aMinus, tauPlus, tauMinus, *sV)
                 PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
-                PartB_QuestionThree_Aux(lifNeuron, PSynapses)   # Run the sim
+                runSimulation([lifNeuron], PSynapses)   # Run the sim
                 spike_Counter_Bins_stdp.append(lifNeuron.spike_count/300)    # Add the total spike count to a list
 
 
@@ -435,7 +448,7 @@ def PartB_QuestionThree():
 
     #plt.show()
 
-    print("Saving figure_2p_3a_new.png after - %s seconds -" % (time.time() - start_time)
+    print("Saving figure_2p_3a_new.png after - %s seconds -" % (time.time() - start_time))
     plt.savefig('figure_2p_3a_new.png', bbox_inches='tight', dpi=1000)
 
 def PartB_QuestionThree_second():
@@ -447,16 +460,13 @@ def PartB_QuestionThree_second():
         lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
         synapseVariables = [lifNeuron     , 4    ,0.5     , 2   , 0 , 10 * (i + 1)]   #ease of use for vars being sent ot the synapse
         PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
-        Gi_Vals_Holder = [[] for i in range(40)]
-        for t in timestamps:
-            currentTime = t
-            lifNeuron.update()
-            for s in range(len(PSynapses)):
-                PSynapses[s].update()
-                #if we are in the last 30s, start a list of every syn's gi
-                if (t > timestamps[-1] - 30):
-                    Gi_Vals_Holder[s].append(PSynapses[s].Gi_history[-1])
 
+        runSimulation([lifNeuron], PSynapses)
+
+        #gather all the synapses strength in the last 30s of the simulation
+        Gi_Vals_Holder = [PSynapses[s].Gi_history[-(30/timestep):] for s in range(40)]
+
+        # now get the means strengths
         Gi_vals_mean.append([mean(Gi_Vals_Holder[j]) for j in range(40)])
 
     fig, ax = plt.subplots(1,1)
@@ -471,7 +481,7 @@ def PartB_QuestionThree_second():
     ax.legend(['10Hz', '20Hz'])
 
 
-    print("Saving figure_2p_3b_new.png after - %s seconds -" % (time.time() - start_time)
+    print("Saving figure_2p_3b_new.png after - %s seconds -" % (time.time() - start_time))
     plt.savefig('figure_2p_3b_new.png', bbox_inches='tight', dpi=1000)
 
 mill = 0.001
