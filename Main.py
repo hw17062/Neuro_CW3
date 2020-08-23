@@ -10,6 +10,7 @@ import math
 from abc import ABC, abstractmethod
 from statistics import mean
 import time
+import gc
 
 mpl.rcParams['agg.path.chunksize'] = 10000
 
@@ -61,6 +62,7 @@ class LIFNeuron(baseNeuron):
     # Performill one timestep update to the LIFNeuron and saves the voltage in the history
     def update(self):
         synapse_input = self.calc_syn_input()
+        # print(synapse_input)
 
         if self.volt >= self.volt_Thesh:   # If we spike, reset
             self.volt = self.volt_reset
@@ -69,7 +71,7 @@ class LIFNeuron(baseNeuron):
             self.spike_Synapses()
 
         # dV = ((El - V) + RmIe)*dt/tau
-        diff = ((self.leaky - self.volt) + (self.Rm_Ie + synapse_input)) *  timestep/self.tau
+        diff = ((self.leaky - self.volt) + (self.Rm_Ie + synapse_input)) *  (timestep/self.tau)
         self.volt += diff
 
         if (self.volt < self.volt_rest): self.volt = self.volt_rest
@@ -86,6 +88,7 @@ class LIFNeuron(baseNeuron):
         input = 0
         for synapse in self.synapseInList:
             input += synapse.RmIs
+
         return input
 
     def spike_Synapses(self):
@@ -151,16 +154,21 @@ class poissonSynapse(BaseSynapse):
         self.s = 0
         self.RmIs = 0
 
-        self.post_LIFNeuron.add_SynapseIn(self)
+        self.last_spike_recieved_t = 0
 
+        self.post_LIFNeuron.add_SynapseIn(self)
     def update(self):
         # Now we check for a spike from the poisson 'Neuron'
         chance = rnd.random()
+
+
+        diff = -self.s/self.tauS * timestep
+        self.s += diff
+
         if (chance < timestep*self.Firerate):
             self.spike()
             self.last_spike_recieved_t = currentTime
-
-        self.s = self.s - (self.s * timestep) / self.tauS
+        # self.s = self.s - (self.s * timestep) / self.tauS
         self.RmIs = self.RmGs * (self.Es - self.post_LIFNeuron.volt) * self.s
 
 
@@ -209,10 +217,11 @@ def runSimulation(Neurons, Synapses):
     global currentTime
     for t in timestamps:
         currentTime = t
-        for n in Neurons:
-            n.update()
         for syn in Synapses:
             syn.update()
+        for n in Neurons:
+            n.update()
+
 
     return Neurons, Synapses
 
@@ -242,27 +251,29 @@ def runSimulation(Neurons, Synapses):
 
 def QuestionOne():
     #                    (tau,volt, volt_reset, leaky, volt_Thesh, Rm_Ie):
-    lifNeuron = LIFNeuron(10 ,-70 ,        -70,   -70,        -40,   Rm=10, Ie=3.1)
+    lifNeuron = LIFNeuron(10 ,-70 ,        -70,   -70,        -54,   Rm=8, Ie=2.1)
 
     runSimulation([lifNeuron], [])
 
     #for i in range(len(timestamps) - 1):    # Loop through how many time steps there are
     #    lifNeuron.update()
 
-    print(len(lifNeuron.voltage_History))
     fig, ax = plt.subplots(1,1)
 
     ax.plot(lifNeuron.voltage_History)
 
-    plt.xticks(np.arange(0,len(lifNeuron.voltage_History), step=len(lifNeuron.voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
+    # Now we set up the plot, firstly we get the xTicks
+    lables = np.linspace(0,1, num=5)
+    xLoc = np.linspace(0,len(lifNeuron.voltage_History), num=5)
+    plt.xticks(xLoc,lables)
     plt.xlabel("Time (s)")
     plt.ylabel("Voltage Value")
 
     plt.title("LIF Model")
 
-    print("Saving figure_p1_q1_new.png after - %s seconds -" % (time.time() - start_time))
+    print("Saving figure_p1_1_resit.png after - %s seconds -" % (time.time() - start_time))
 
-    plt.savefig('figure_p1_q1_new.png', bbox_inches='tight', dpi=1000)
+    plt.savefig('figure_p1_1_resit.png', bbox_inches='tight', dpi=500)
 
 
 # -----------------------------------------------------------------------------
@@ -297,16 +308,22 @@ def QuestionTwo(Es):
 
     ax.plot(Ns[0].voltage_History, color = 'blue')
     ax.plot(Ns[1].voltage_History, color = 'red')
-    ax.legend(['lifNeuron One', 'lifNeuron 2'])
+    ax.legend(['lifNeuron One', 'lifNeuron Two'])
 
-    plt.xticks(np.arange(0,len(Ns[0].voltage_History), step=len(Ns[0].voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
+    # Now we set up the plot, firstly we get the xTicks
+    lables = np.linspace(0,1, num=5)
+    xLoc = np.linspace(0,len(Ns[0].voltage_History), num=5)
+    plt.xticks(xLoc,lables)
+    # plt.xticks(np.arange(0,len(Ns[0].voltage_History), step=len(Ns[0].voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
     plt.xlabel("Time (s)")
     plt.ylabel("Voltage Value")
 
-    plt.title("LIF Model")
+    plt.title("LIF Model, Es = {}".format(Es))
 
-    print("Saving figure_p1_q2_new.png after - %s seconds -" % (time.time() - start_time))
-    plt.savefig('figure_p1_q2_new.png', bbox_inches='tight', dpi=1000)
+    part = "a" if Es == 0 else "b"
+
+    print("Saving figure_p1_2{}_resit.png after - {} seconds -".format(part, time.time() - start_time))
+    plt.savefig('figure_p1_2{}_resit.png'.format(part), bbox_inches='tight', dpi=500)
 
 # =============================================================================
 #                           Part 2
@@ -321,27 +338,26 @@ def PartB_QuestionOne():
     #                          (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
     PSynapses = [poissonSynapse(lifNeuron     , 4 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
 
+    print(lifNeuron.Rm_Ie)
     lifNeuron, PSynapses = runSimulation([lifNeuron], PSynapses)
 
-    # for t in timestamps:
-    #     currentTime = t
-    #     lifNeuron.update()
-    #     for syn in PSynapses:
-    #         syn.update()
+    fig, ax = plt.subplots()
 
-    fig, ax = plt.subplots(1,1)
+    ax.plot(lifNeuron[0].voltage_History, color = 'blue')
+    ax.hlines(lifNeuron[0].volt_Thesh, 0,4000)
 
-    ax.plot(lifNeuron.voltage_History, color = 'blue')
-    ax.hlines(lifNeuron.volt_Thesh, 0,4000)
-
-    plt.xticks(np.arange(0,len(lifNeuron.voltage_History), step=len(lifNeuron.voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
+    # Now we set up the plot, firstly we get the xTicks
+    lables = np.linspace(0,1, num=5)
+    xLoc = np.linspace(0,len(lifNeuron[0].voltage_History), num=5)
+    plt.xticks(xLoc,lables)
+    # plt.xticks(np.arange(0,len(lifNeuron[0].voltage_History), step=len(lifNeuron[0].voltage_History)/5), ["0", "0.2", "0.4", "0.6", "0.8", "1"])
     plt.xlabel("Time (s)")
     plt.ylabel("Voltage Value")
 
     plt.title("Part 2 Q1")
 
-    print("Saving figure_p2_q1_new.png after - %s seconds -" % (time.time() - start_time))
-    plt.savefig('figure_p2_q1_new.png', bbox_inches='tight', dpi=1000)
+    print("Saving figure_p2_1_resit.png after - %s seconds -" % (time.time() - start_time))
+    plt.savefig('figure_p2_1_resit.png', bbox_inches='tight', dpi=500)
 
 
 # -----------------------------------------------------------------------------
@@ -352,10 +368,10 @@ def PartB_QuestionTwo(stdp):
     #                    (tau,volt, volt_reset, leaky, volt_Thesh, RmIe)
     lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
 
-    synapseVariables = [lifNeuron     , 2.362    ,0.5     , 2   , 0 , 15]
-    #                              (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
+    synapseVariables = [lifNeuron     , 4    ,0.5     , 2   , 0 , 15]
+    #                  (post_LIFNeuron, Gi       ,Delta_s , tauS, Es, Firerate):
     if (not stdp):
-        PSynapses = [poissonSynapse(lifNeuron     , 2.362 ,0.5     , 2   , 0 , 15 ) for i  in range(40)]
+        PSynapses = [poissonSynapse(lifNeuron     , 4    ,0.5     , 2   , 0 , 15) for i  in range(40)]
     else:
         #                       (aPlus, aMinus, tauPlus, tauMinus, *sV)
         PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
@@ -376,35 +392,60 @@ def PartB_QuestionTwo(stdp):
     spike_Counter_Bins.append(lifNeuron.spike_count/(currentTime % 10))
     lifNeuron.reset_Spike_Count()
 
-    plt.subplot(2,1,1)
-
-    plt.title("Part 2 Q2")
+    filename = ""
     final_Gis = []
-    if (PSynapses[1].__class__.__name__ == "PSynapses"):
+
+    # create 2 in one grpasg for Gis and fire rate if useing STDP
+    if (stdp):
+        fig, (ax1,ax2) = plt.subplots(nrows=2, ncols=1)
+
+        filename = "figure_p2_2a_resit.png"
+        fig.suptitle("Part 2 Q2 w/ stdp")
 
         for syn in PSynapses:
             final_Gis.append(syn.Gi_history[-1])
 
-        plt.hist(final_Gis)
+        ax1.hist(final_Gis)
 
-        plt.xlabel("Gi Values (nA)")
-        plt.ylabel("# Of Synapses")
+        ax1.set_xlabel("Gi Values (nS)")
+        ax1.set_ylabel("# Of Synapses")
 
-    plt.subplot(2,1,2)
+        ax2.plot(spike_Counter_Bins, color = 'blue')
+        #ax.hlines(lifNeuron.volt_Thesh, 0,4000)
 
-    plt.plot(spike_Counter_Bins, color = 'blue')
-    #ax.hlines(lifNeuron.volt_Thesh, 0,4000)
+        # Now we set up the plot, firstly we get the xTicks
+        lables = np.around(np.linspace(0,timestamps[-1], num=11))
+        xLoc = np.around(np.linspace(0,len(spike_Counter_Bins), num=11))
+        ax2.set_xticks(xLoc)
+        ax2.set_xticklabels(lables)
+        # plt.xticks(np.arange(0,len(spike_Counter_Bins) + 1, step=len(spike_Counter_Bins)/6),  [str(i * duration/6) for i in range(7)])
+        ax2.set_xlabel("Time (s)")
+        ax2.set_ylabel("Firerate (Hz)")
+        fig.tight_layout(pad=1.0)
+    else:
+        fig, ax = plt.subplots()
 
-    plt.xticks(np.arange(0,len(spike_Counter_Bins) + 1, step=len(spike_Counter_Bins)/6),  [str(i * duration/6) for i in range(7)])
-    plt.xlabel("Time (s)")
-    plt.ylabel("Firerate (Hz)")
+        filename = "figure_p2_2b_resit.png"
+        fig.suptitle("Part 2 Q2 w/o stdp")
 
-    #print("average Gi: ", mean(final_Gis))
-    print("average <f> of last 30s: ", str(mean(spike_Counter_Bins[-3:])))
+        ax.plot(spike_Counter_Bins, color = 'blue')
+        #ax.hlines(lifNeuron.volt_Thesh, 0,4000)
 
-    print("Saving figure_2p_2a_new.png after - %s seconds -" % (time.time() - start_time))
-    plt.savefig('figure_2p_2a_new.png', bbox_inches='tight')
+        # Now we set up the plot, firstly we get the xTicks
+        lables = np.around(np.linspace(0,timestamps[-1], num=11))
+        xLoc = np.around(np.linspace(0,len(spike_Counter_Bins), num=11))
+        ax.set_xticks(xLoc)
+        ax.set_xticklabels(lables)
+        # plt.xticks(np.arange(0,len(spike_Counter_Bins) + 1, step=len(spike_Counter_Bins)/6),  [str(i * duration/6) for i in range(7)])
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Firerate (Hz)")
 
+    print("Saving {} after - {} seconds -".format(filename, (time.time() - start_time)))
+    fig.savefig(filename, bbox_inches='tight')
+
+
+# -----------------------------------------------------------------------------
+#                           Question 3
 
 def PartB_QuestionThree():
 
@@ -422,9 +463,9 @@ def PartB_QuestionThree():
             lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
 
             synapseVariables = [lifNeuron     , 4    ,0.5     , 2   , 0 , 10 + j]   #ease of use for vars being sent ot the synapse
-            #                              (post_LIFNeuron, Gi, Delta_s, tauS, Es, Firerate):
+            #                  (post_LIFNeuron, Gi   ,Delta_s ,tauS ,Es , Firerate):
             if (not stdp):
-                PSynapses = [poissonSynapse(lifNeuron     , 4 ,0.5     , 2   , 0 , 10 + j ) for i  in range(40)]
+                PSynapses = [poissonSynapse(lifNeuron     , 4    ,0.5     , 2   , 0 , 10 + j) for i  in range(40)]
                 runSimulation([lifNeuron], PSynapses)   #run the sim
                 spike_Counter_Bins.append(lifNeuron.spike_count/300)  # Add the total spike count to a list
             else:
@@ -433,13 +474,21 @@ def PartB_QuestionThree():
                 runSimulation([lifNeuron], PSynapses)   # Run the sim
                 spike_Counter_Bins_stdp.append(lifNeuron.spike_count/300)    # Add the total spike count to a list
 
+            del PSynapses
+            gc.collect()
 
     fig, ax = plt.subplots(1,1)
 
     ax.plot(spike_Counter_Bins, color = 'blue')
     ax.plot(spike_Counter_Bins_stdp, color = 'red')
 
-    plt.xticks(np.arange(0,len(spike_Counter_Bins_stdp), step=len(spike_Counter_Bins_stdp)/5),  [str(round(i * len(spike_Counter_Bins_stdp)/6, 3)) for i in range(7)])
+    # Now we set up the plot, firstly we get the xTicks
+    lables = np.around(np.linspace(10,20, num=11), 0)
+    xLoc = np.around(np.linspace(0,len(spike_Counter_Bins_stdp), num=11))
+    ax.set_xticks(xLoc)
+    ax.set_xticklabels(lables)
+
+    # plt.xticks(np.arange(0,len(spike_Counter_Bins_stdp), step=len(spike_Counter_Bins_stdp)/5),  [str(round(i * len(spike_Counter_Bins_stdp)/6, 3)) for i in range(7)])
     plt.xlabel("input Firerate (hz)")
     plt.ylabel("output firerates")
 
@@ -448,10 +497,10 @@ def PartB_QuestionThree():
 
     #plt.show()
 
-    print("Saving figure_2p_3a_new.png after - %s seconds -" % (time.time() - start_time))
-    plt.savefig('figure_2p_3a_new.png', bbox_inches='tight', dpi=1000)
+    print("Saving figure_p2_3a_resit.png after - %s seconds -" % (time.time() - start_time))
+    plt.savefig('figure_p2_3a_resit.png', bbox_inches='tight', dpi=500)
 
-def PartB_QuestionThree_second():
+def PartB_QuestionThree_Hist():
 
 
     Gi_vals_mean = []
@@ -464,25 +513,120 @@ def PartB_QuestionThree_second():
         runSimulation([lifNeuron], PSynapses)
 
         #gather all the synapses strength in the last 30s of the simulation
-        Gi_Vals_Holder = [PSynapses[s].Gi_history[-(30/timestep):] for s in range(40)]
+        Gi_Vals_Holder = [PSynapses[s].Gi_history[-(int(30/timestep)):] for s in range(40)]
 
         # now get the means strengths
         Gi_vals_mean.append([mean(Gi_Vals_Holder[j]) for j in range(40)])
 
-    fig, ax = plt.subplots(1,1)
-    ax.hist(Gi_vals_mean[0], color = 'blue')
-    ax.hist(Gi_vals_mean[1], color = 'red')
+    fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex='all')
+    ax1.hist(Gi_vals_mean[0], color = 'blue')
+    ax2.hist(Gi_vals_mean[1], color = 'red')
 
-    #plt.xticks(np.arange(0,len(Gi_vals_mean[1]), step=len(Gi_vals_mean[1])/4),  [str(round(i * len(Gi_vals_mean[1])/5, 3)) for i in range(6)])
-    plt.xlabel("input Firerate (hz)")
-    plt.ylabel("Stead-state synaptic strengths")
+    # plt.xticks(np.arange(0,len(Gi_vals_mean[1]), step=len(Gi_vals_mean[1])/4),  [str(round(i * len(Gi_vals_mean[1])/5, 3)) for i in range(6)])
 
-    plt.title("Part 2 Q3, STDP Hz test")
-    ax.legend(['10Hz', '20Hz'])
+    # Now we set up the plot, firstly we get the xTicks
+    # lables = np.around(np.linspace(3,4, num=11))
+    # xLoc = np.around(np.linspace(3,4, num=11))
+    # ax1.set_xticks(xLoc)
+    # ax1.set_xticklabels(lables)
+    # ax2.set_xticks(xLoc)
+    # ax2.set_xticklabels(lables)
+    # fig.ylabel("Steady-state synaptic strengths")
+
+    fig.suptitle("Part 2 Q3, STDP <r> = 10 and 20")
+
+    ax1.set_xlabel("Gi Values (nS)")
+    ax1.set_ylabel("# Of Synapses")
+
+    ax2.set_xlabel("Gi Values (nS)")
+    ax2.set_ylabel("# Of Synapses")
+
+    ax1.xaxis.set_tick_params(which='both', labelbottom=True)
+
+    fig.legend(['10Hz', '20Hz'], loc= (0.2,0.8))
+    fig.tight_layout(pad=1.0)
+
+    print("Saving figure_p2_3b_resit.png after - %s seconds -" % (time.time() - start_time))
+    plt.savefig('figure_p2_3b_resit.png', bbox_inches='tight', dpi=500)
 
 
-    print("Saving figure_2p_3b_new.png after - %s seconds -" % (time.time() - start_time))
-    plt.savefig('figure_2p_3b_new.png', bbox_inches='tight', dpi=1000)
+#  -----------------------------------------------------------------------------
+#                           Question 3
+
+def PartB_QuestionFour():
+    lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
+    synapseVariables = [lifNeuron     , 4    ,0.5     , 2   , 0 , 10]   #ease of use for vars being sent ot the synapse
+    PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(20)]
+    synapseVariables = [lifNeuron     , 4    ,0.5     , 2   , 0 , 20]   #ease of use for vars being sent ot the synapse
+    PSynapses.extend([STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(20)])
+
+    runSimulation([lifNeuron], PSynapses)
+
+    Gi_Vals_Holder = [PSynapses[s].Gi_history[-(int(30/timestep)):] for s in range(40)]
+    Gi_vals_mean = []
+    Gi_vals_mean.append([mean(Gi_Vals_Holder[j]) for j in range(20)])
+    Gi_vals_mean.append([mean(Gi_Vals_Holder[j + 20]) for j in range(20)])
+
+    print("r1 Mean = {} \nr2 Mean = {}".format(mean(Gi_vals_mean[0]), mean(Gi_vals_mean[1])))
+
+    fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex='all')
+    ax1.hist(Gi_vals_mean[0], color = 'blue')
+    ax2.hist(Gi_vals_mean[1], color = 'red')
+
+    fig.suptitle("Part 2 Q4, STDP = on, <r1> = 10, <r2> = 20")
+
+    ax1.set_xlabel("Gi Values (nS)")
+    ax1.set_ylabel("# Of Synapses")
+
+    ax2.set_xlabel("Gi Values (nS)")
+    ax2.set_ylabel("# Of Synapses")
+
+    ax1.xaxis.set_tick_params(which='both', labelbottom=True)
+
+    fig.legend(['<r1>', '<r2>'], loc= (0.2,0.8))
+    fig.tight_layout(pad=1.0)
+
+    print("Saving figure_p2_4a_resit.png after - %s seconds -" % (time.time() - start_time))
+    plt.savefig('figure_p2_4a_resit.png', bbox_inches='tight', dpi=500)
+    print("Saved figure_p2_4a_resit.png after - %s seconds -" % (time.time() - start_time))
+
+    #r1 Mean = 3.553478363726296e-09
+    #r2 Mean = 1.3467810247457746e-09
+
+    # mean = 2.4501296942360353
+
+    #r3 Mean = 2.179196030496824e-09
+
+
+def PartB_QuestionFour_15():
+    lifNeuron = LIFNeuron(10 ,-65 ,-65        ,-65   ,-50        ,Rm =100, Ie = 0)
+    synapseVariables = [lifNeuron     , 4    ,0.5     , 2   , 0 , 15]   #ease of use for vars being sent ot the synapse
+    PSynapses = [STDPSynapse(0.2, 0.25, 20, 20,synapseVariables) for i  in range(40)]
+
+    runSimulation([lifNeuron], PSynapses)
+
+    Gi_Vals_Holder = [PSynapses[s].Gi_history[-(int(30/timestep)):] for s in range(40)]
+    Gi_vals_mean = []
+    Gi_vals_mean.append([mean(Gi_Vals_Holder[j]) for j in range(40)])
+
+    print("r3 Mean = {}".format(mean(Gi_vals_mean[0])))
+
+    fig, ax1 = plt.subplots()
+    ax1.hist(Gi_vals_mean[0], color = 'blue')
+
+    fig.suptitle("Part 2 Q4, STDP = on, <r> = 15")
+
+    ax1.set_xlabel("Gi Values (nS)")
+    ax1.set_ylabel("# Of Synapses")
+    fig.tight_layout(pad=1.0)
+
+    print("Saving figure_p2_4b_resit.png after - %s seconds -" % (time.time() - start_time))
+    plt.savefig('figure_p2_4b_resit.png', bbox_inches='tight', dpi=500)
+    print("Saved figure_p2_4b_resit.png after - %s seconds -" % (time.time() - start_time))
+
+
+# -----------------------------------------------------------------------------
+#                           ~~ MAIN ~~
 
 mill = 0.001
 mega = 1000000
@@ -499,7 +643,7 @@ def main(argv):
     global firerate
     global timestamps
 
-    input_duration = duration
+    input_duration = duration   # Defult = 1
     global start_time
     start_time = time.time()
     STDP = False
@@ -516,23 +660,30 @@ def main(argv):
           input_duration = int(arg)
 
     # Set durations of the Qs appropriately
-    duration = 1
+    #duration = 1
+    #timestamps = np.arange(0, duration, timestep)
+    #QuestionOne()
+
+    # duration = 1
+    # timestamps = np.arange(0, duration, timestep)
+    #QuestionTwo(0)
+    #QuestionTwo(-80)
+
+    duration = 300
     timestamps = np.arange(0, duration, timestep)
-    QuestionOne()
+    # PartB_QuestionOne()
+    PartB_QuestionTwo(True)
+    PartB_QuestionTwo(False)
 
-    duration = 1
-    timestamps = np.arange(0, duration, timestep)
-    QuestionTwo(0)
-    QuestionTwo(-80)
-
-    duration = input_duration
-    timestamps = np.arange(0, duration, timestep)
-    PartB_QuestionOne()
-    PartB_QuestionTwo(STDP)
-
-
+    # duration = 300
+    # timestamps = np.arange(0, duration, timestep)
     PartB_QuestionThree()
-    PartB_QuestionThree_second()
+    PartB_QuestionThree_Hist()
+
+    # duration = 300
+    # timestamps = np.arange(0, duration, timestep)
+    # PartB_QuestionFour()
+    # PartB_QuestionFour_15()
 
     print("--- %s seconds ---" % (time.time() - start_time))
 
